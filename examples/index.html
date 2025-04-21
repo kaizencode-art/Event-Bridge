@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test customEventManer</title>
+</head>
+
+<body>
+    <fieldset name="dom example">
+        <legend>DOM Example</legend>
+        <div id="app">
+            <button>Click me</button>
+            <p>Waiting for click...</p>
+        </div>
+    </fieldset>
+
+    <script type="module">
+        import '../dist/src/EventRegistry.js';
+        import {EventManager} from '../dist/src/EventManager.js';
+
+        window.EventRegistry.register('buttonClicked');
+
+        const button = document.querySelector('button');
+        const paragragh = document.querySelector('p');
+        const app = document.getElementById(`app`);
+
+        Object.assign(button, { name: 'MainButton' });
+        Object.assign(paragragh, { name: 'Logger' });
+
+
+        EventManager.registerEmitter(button, 'buttonClicked');
+        button.addEventListener('click',() => {        
+            EventManager.dispatch(button, 'buttonClicked', {
+                detail: { timestamp: Date.now() },
+                bubbles: true,
+                composed: false
+            });
+        });
+
+        const callback = (e) => {
+            paragragh.textContent = `Clicked at ${new Date(e.detail.timestamp).toLocaleString()}`;
+        };
+
+        EventManager.consume(app, 'buttonClicked', callback);
+    </script>
+    <script type="module">
+        import '../dist/examples/webcomponents/lit/counter-button.js'
+        import '../dist/examples/webcomponents/lit/counter-panel.js'
+        import '../dist/examples/webcomponents/lit/counter-app.js'
+
+    </script>
+
+    <fieldset>
+        <legend>LitElement Example</legend>
+        <counter-app></counter-app>
+    </fieldset>
+
+</body>
+
+</html>

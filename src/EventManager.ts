@@ -1,76 +1,75 @@
-import { EventNameSchema } from './EventRegistry';
-import { z } from 'zod';
+import { EventName } from './EventRegistry';
+import { NamedEventTarget } from './types';
 
-/**
- * Infos consommateur : on a besoin de savoir
- * - l'objet consumer lui-même
- * - le callback à appeler lors du emit
- */
-const ConsumerInfo = z.object({
-    consumer: z.unknown().refine(
-        (val) => typeof val === 'object' && val !== null && !Array.isArray(val),
-        { message: 'Must be a non-null, non-array object' }
-    ),
-    callback: z.function().args(z.any()).returns(z.void()),
-});
-
-export interface NamedEventTarget extends EventTarget {
-    name: string;
-}
-
-type ConsumerInfo = z.infer<typeof ConsumerInfo>;
 
 type EventState = {
     emitter: NamedEventTarget;
-    allowedConsumerCount: Number;  // the number of consumers allow for this event default is one
+    allowedConsumerCount: number;
     consumers: Set<NamedEventTarget>
 }
 
-export default class EventManager {
+export class EventManager {
 
-    private static eventStates: Map<EventNameSchema, EventState> = new Map<EventNameSchema, EventState>;
+    //maybe weakmap could resolve the cleaning of eventState on element removed from the dom 
+    private static readonly eventStates = new Map<EventName, EventState>();
+    private static readonly index = new Map<string, EventName>(); // one emitter per event <emitter, eventName>
 
-    private static _emit(emitter: NamedEventTarget, event: EventNameSchema, eventDetail: CustomEventInit): void {
+    private static _fullyQualifiedEventName(eventState: EventState, event: EventName): string {
+        return `${eventState.emitter.name}:${event}`;
+    }
+
+    static dispatch(emitter: NamedEventTarget, event: EventName, eventDetail: CustomEventInit): void {
+        if(!window.EventRegistry.has(event)) throw new Error(`Can't emit on ${event} unregistered event`);
+        const state = this.eventStates.get(event);
+        if(!emitter || !state || state.emitter !== emitter) throw new Error(`Can't dispatch on unregistered  ${event} or invalid emitter `);
         if(emitter && typeof emitter.dispatchEvent === 'function') { 
-            emitter.dispatchEvent(new CustomEvent(`${emitter.name}:${event}`, eventDetail));
+            emitter.dispatchEvent(new CustomEvent(this._fullyQualifiedEventName(state, event), eventDetail));
         } else {
             throw new Error(`emitter can't emit events `);
         }
     }
 
-    public static emit(emitter: NamedEventTarget, event: EventNameSchema, eventDetail: CustomEventInit, consumerCount: Number = 1) {
-        const state: EventState = {
+
+    static registerEmitter(emitter: NamedEventTarget, event: EventName, consumerCount: number = 1):void {
+        if(!emitter || !emitter.name || emitter.name === null || emitter.name.length <= 0 ) throw new Error(`Invalid emitter for registration`);
+        if(consumerCount <= 0) throw new Error(`${event} must allow at least one consumer`);
+        if(!window.EventRegistry.has(event)) throw new Error(`Can't emit on ${event} unregistered event`);
+        if(this.eventStates.has(event)) throw new Error(`${event}: has already an emitter`);
+
+        this.eventStates.set(event, {
             emitter,
             allowedConsumerCount: consumerCount,
-            consumers: new Set()
-        }
-        this.eventStates.set(event, state);
-        this._emit(emitter, event, eventDetail);
+            consumers: new Set<NamedEventTarget>()
+        });
+
+        this.index.set(emitter.name, event);
+
+        // this._emit(emitter, event, eventDetail);
     }
 
-    public static consume(consumer: NamedEventTarget, event: EventNameSchema, callback: (playload: any) => void): void {
-        if(!this.eventStates.has(event)) {
-            throw new Error(`Cant consume event on no emitter`);
-        }
+    static consume(consumer: NamedEventTarget, event: EventName, callback: EventListener): void {
+        if(!this.eventStates.has(event)) throw new Error(`Cant consume event on no emitter`);
 
-        const state = this.eventStates.get(event);
+        const state = this.eventStates.get(event)!;
 
-        if(state?.consumers.size === state?.allowedConsumerCount) {
-            throw new Error(`More consumer registered than allowed`);
-        }
+        if(state.consumers.has(consumer)) throw new Error(`${consumer.name} is already registered as a consumer`);
+        if(state.consumers.size === state.allowedConsumerCount) throw new Error(`More consumer registered than allowed`);
 
-        // we add eventlistener but for the moment there's no mechanisme to auto remove eventListener
-        consumer.addEventListener(`${state?.emitter.name}:${event}`, callback)
+        state.consumers.add(consumer);
+
+        consumer.addEventListener(this._fullyQualifiedEventName(state, event), callback);
     }
 
     // à appeler dans le `disconnectedCallback` au retrait de l'élément du dom 
-    public static removeConsume(consumer: NamedEventTarget, event: EventNameSchema, callback: (playload: any) => void): void {
-        if(!this.eventStates.has(event)) {
-            throw new Error(`Can't remove consumer on event with no emitter`);
-        }
+    static removeConsume(consumer: NamedEventTarget, event: EventName, callback: EventListener): void {
+        if(!this.eventStates.has(event)) throw new Error(`Can't remove consumer on event with no emitter`);
 
-        const state = this.eventStates.get(event);
+        const state = this.eventStates.get(event)!;
+        state.consumers.delete(consumer);
 
-        consumer.removeEventListener(`${state?.emitter.name}:${event}`, callback);
+        consumer.removeEventListener(this._fullyQualifiedEventName(state, event), callback);
     }
+
+ 
+
 }

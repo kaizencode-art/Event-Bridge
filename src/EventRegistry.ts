@@ -1,31 +1,31 @@
 import { z } from 'zod';
 
 // Zod schema to validate event names
-const EventNameSchema = z.string().min(1, "Event name must be a non-empty string");
+export const EventNameSchema = z.string()
+    .min(1, "Event name must be a non-empty string")
+    .refine(n => !n.includes(':'), { message: '“:” not allowed in event name' });
 
 // Internal store – private to the module
 const _eventRegistry = new Set<string>([]);
 
 // Public API interface
 export interface EventRegistryAPI {
-    register: (eventName: unknown) => boolean;
+    register: (eventName: string) => boolean;
     has: (eventName: string) => boolean;
     list: () => readonly string[];
 }
 
-const EventRegistry: EventRegistryAPI = {
-    register(eventName: unknown): boolean {
+export const EventRegistry: EventRegistryAPI = {
+    register(eventName: string): boolean {
         const result = EventNameSchema.safeParse(eventName);
         if (!result.success) {
-            console.error(`Invalid event name: ${result.error.format()}`);
-            return false;
+            throw new Error(`Invalid event name: ${result.error.format()}`);
         }
         
         const name = result.data;
         
         if (_eventRegistry.has(name)) {
             throw new Error(`Event already registered: ${name}`);
-            return false;
         }
         
         _eventRegistry.add(name);
@@ -37,7 +37,7 @@ const EventRegistry: EventRegistryAPI = {
     },
     
     list(): readonly string[] {
-        return Array.from(_eventRegistry);
+        return Object.freeze([..._eventRegistry]);
     }
 };
 
@@ -55,4 +55,4 @@ Object.defineProperty(window, 'EventRegistry', {
     enumerable: true,
 });
 
-export type EventNameSchema = z.infer<typeof EventNameSchema>
+export type EventName = z.infer<typeof EventNameSchema>
