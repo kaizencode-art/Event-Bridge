@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 // Zod schema to validate event names
 export const EventNameSchema = z.string()
-    .min(1, "Event name must be a non-empty string")
+    .min(2, "Event name must be a non-empty string")
+    .regex(/^[A-Za-z_-]+$/, {
+        message: 'Event name must contain letters only (A–Z, a–z)',
+    })
     .refine(n => !n.includes(':'), { message: '“:” not allowed in event name' });
 
 // Internal store – private to the module
