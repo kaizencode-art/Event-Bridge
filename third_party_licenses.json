@@ -1,0 +1,14 @@
+{
+    "typescript@5.8.3": {
+        "licenses": "Apache-2.0",
+        "repository": "https://github.com/microsoft/TypeScript",
+        "licenseUrl": "https://github.com/microsoft/TypeScript/raw/master/LICENSE.txt",
+        "parents": "event-bridge"
+    },
+    "zod@3.24.2": {
+        "licenses": "MIT",
+        "repository": "https://github.com/colinhacks/zod",
+        "licenseUrl": "https://github.com/colinhacks/zod/raw/master/LICENSE",
+        "parents": "event-bridge"
+    }
+}
